@@ -7,7 +7,8 @@ import sys
 import glob
 import subprocess
 
-from distutils.command.install import install
+from distutils.command.build import build
+from distutils.command.install_data import install_data
 from setuptools import setup
 from distutils.extension import Extension
 
@@ -15,14 +16,14 @@ PO_DIR = 'po'
 MO_DIR = os.path.join('build', 'mo')
 
 
-class InstallAndUpdateDataDirectory(install):
+class BuildData(build):
 
     def run(self):
         # Run parent install method
-        install.run(self)
+        build.run(self)
 
         # Run shell script to install data files
-        get_command_output('sh ./install_data.sh %s' % self.prefix)
+        # get_command_output('sh ./install_data.sh %s' % self.prefix)
 
         # Compile and install languages
         for po in glob.glob (os.path.join (PO_DIR, '*.po')):
@@ -38,6 +39,21 @@ class InstallAndUpdateDataDirectory(install):
                     raise Warning, "msgfmt returned %d" % rc
             except Exception, e:
                 sys.exit(1)
+
+class InstallData(install_data):
+    def run(self):
+        self.data_files.extend(self.find_mo_files())
+        install_data.run(self)
+
+    def find_mo_files(self):
+        data_files = []
+
+        for mo in glob.glob(os.path.join(MO_DIR, '*', 'guake.mo')):
+            lang = os.path.basename(os.path.dirname(mo))
+            dest = os.path.join('share', 'locale', lang, 'LC_MESSAGES')
+            data_files.append((dest, [mo]))
+            
+        return data_files
 
 
 def parse_pkg_config(command, components, options_dict=None):
@@ -109,6 +125,11 @@ again to hide.''',
     package_dir = {'guake': 'src'},
     packages = ['guake'],
     scripts=['src/guake'],
-    cmdclass={'install': InstallAndUpdateDataDirectory},
+    data_files = [
+        ('share/pixmaps/guake', glob.glob('data/pixmaps/*')),
+        ('share/man/man1', ['data/guake.1']),
+        ('share/guake', glob.glob('data/*.glade')),
+        ],
+    cmdclass={'build': BuildData, 'install_data': InstallData,},
     ext_modules=[globalhotkeys]
     )
